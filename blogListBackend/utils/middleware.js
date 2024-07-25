@@ -13,16 +13,15 @@ const errorHandler =(error,request,response,next) => {
 
 }
 const tokenExtractor = (request, response, next) => {
-  let token = request.get('authorization')
-  if (token && token.startsWith('Bearer ')) {
-    token = token.replace('Bearer ', '')
-  } else {
-    token = null
+
+  const authorization = request.get('authorization')
+  if (authorization && authorization.startsWith('Bearer ')) {
+    return authorization.replace('Bearer ', '')
   }
-  request.token = token
-  next()}
-const userExtractor = (request, response,next) => {
-  const token = request.token
+  return null
+}
+const userExtractor = (request,response,next) => {
+  const token = tokenExtractor(request)
   let  user = null
   if (!token ){
     user = null
@@ -36,5 +35,4 @@ const userExtractor = (request, response,next) => {
 module.exports = { errorHandler ,
   userExtractor,
   tokenExtractor,
-  
 }

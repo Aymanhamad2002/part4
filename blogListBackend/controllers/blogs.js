@@ -1,38 +1,44 @@
 const blogRouter = require('express').Router()
 const Blog = require('../models/blog')
+const User = require('../models/user')
 const config = require('../utils/config')
 const jwt = require('jsonwebtoken')
+const middleware = require('../utils/middleware')
 
 blogRouter.get('/', async (request, response) => {
   const result =  await Blog.find({}).populate('user')
   response.json(result)
 
 })
-blogRouter.post('/',  async (request, response) => {
+blogRouter.post('/',middleware.userExtractor,  async (request, response) => {
   let  content  = request.body
+  
+  const userFromDb = await User.findById(request.user)
+  
   if(!('likes' in content )){
     content  = { ...content ,likes:0 }
   }
-  const decodedToken = jwt.verify(request.token,config.SECRET)
-  if(!decodedToken.id){
-    return response.status(401).json({ error : 'token invalid' })
-  }
+  //if(!request.user){
+  //return response.status(401).json({ error : 'token invalid' })
+  //}
   const blog = {
     title: content.title,
     likes: content.likes,
     url: content.url,
     author: content.author,
-    user: decodedToken.id,
+    user: userFromDb._id,
   }
 
   const blogObject = new Blog(blog)
   const result = await blogObject.save()
+  userFromDb.blogs = userFromDb.blogs.concat(result._id)
+  await userFromDb.save()
   response.status(201).json(result)
 })
-blogRouter.delete('/:id', async(request,response) => {
+blogRouter.delete('/:id',middleware.userExtractor, async(request,response) => {
   const userId = request.user
   if(!userId){
-    return response.status(401).json({ error : 'invalid token '})
+    return response.status(401).json({ error : 'invalid token  ' })
   }
   const blog = await Blog.findById(request.params.id)
   if(!blog){
@@ -43,6 +49,9 @@ blogRouter.delete('/:id', async(request,response) => {
   }
   else{
     const removedData =  await Blog.findByIdAndDelete(request.params.id)
+    const user =await  User.findById(userId)
+    user.blogs = user.blogs.filter(blogId => blogId.toString() !== blog._id.toString())
+    await user.save()
     response.json(removedData)
   }
 })
@@ -54,7 +63,8 @@ blogRouter.put('/:id',async(request,response) => {
     likes: body.likes,
     author: body.author ,
   }
-  const result = await Blog.findByIdAndUpdate(request.params.id,blog,{ new:true })
+  const  result = await Blog.findByIdAndUpdate(request.params.id,blog,{ new:true }).populate('user')
+
   response.json(result)
 })
 
