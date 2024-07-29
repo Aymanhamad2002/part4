@@ -1,41 +1,43 @@
 const blogRouter = require('express').Router()
 const Blog = require('../models/blog')
 const User = require('../models/user')
-const config = require('../utils/config')
-const jwt = require('jsonwebtoken')
-const middleware = require('../utils/middleware')
+
+const userExtractor = require('../utils/middleware').userExtractor
 
 blogRouter.get('/', async (request, response) => {
   const result =  await Blog.find({}).populate('user')
   response.json(result)
 
 })
-blogRouter.post('/',middleware.userExtractor,  async (request, response) => {
-  let  content  = request.body
-  
-  const userFromDb = await User.findById(request.user)
-  
-  if(!('likes' in content )){
-    content  = { ...content ,likes:0 }
+blogRouter.post('/', userExtractor, async (request, response) => {
+  let content = request.body
+  const userId = request.user
+
+  const userFromDb = await User.findById(userId)
+  if (!userFromDb) {
+    return response.status(401).json({ error: 'user not found' })
   }
-  //if(!request.user){
-  //return response.status(401).json({ error : 'token invalid' })
-  //}
-  const blog = {
+
+  if (!('likes' in content)) {
+    content = { ...content, likes: 0 }
+  }
+
+  const blog = new Blog({
     title: content.title,
     likes: content.likes,
     url: content.url,
     author: content.author,
     user: userFromDb._id,
-  }
+  })
 
-  const blogObject = new Blog(blog)
-  const result = await blogObject.save()
+  let  result = await blog.save()
   userFromDb.blogs = userFromDb.blogs.concat(result._id)
   await userFromDb.save()
+  result = await result.populate('user')
   response.status(201).json(result)
 })
-blogRouter.delete('/:id',middleware.userExtractor, async(request,response) => {
+blogRouter.delete('/:id',userExtractor, async(request,response) => {
+
   const userId = request.user
   if(!userId){
     return response.status(401).json({ error : 'invalid token  ' })

@@ -12,7 +12,7 @@ const errorHandler =(error,request,response,next) => {
 
 
 }
-const tokenExtractor = (request, response, next) => {
+const tokenExtractor = (request) => {
 
   const authorization = request.get('authorization')
   if (authorization && authorization.startsWith('Bearer ')) {
@@ -20,17 +20,22 @@ const tokenExtractor = (request, response, next) => {
   }
   return null
 }
-const userExtractor = (request,response,next) => {
+const userExtractor = async (request, response, next) => {
   const token = tokenExtractor(request)
-  let  user = null
-  if (!token ){
-    user = null
-  }else {
-    const decodedToken =jwt.verify(token,config.SECRET)
-    user = decodedToken.id
+  if (!token) {
+    return response.status(401).json({ error: 'token missing' })
   }
-  request.user = user
-  next()
+
+  try {
+    const decodedToken = jwt.verify(token, config.SECRET)
+    if (!decodedToken.id) {
+      return response.status(401).json({ error: 'token invalid' })
+    }
+    request.user = decodedToken.id
+    next()
+  } catch (error) {
+    return response.status(401).json({ error: 'token invalid' })
+  }
 }
 module.exports = { errorHandler ,
   userExtractor,
